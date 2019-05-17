@@ -212,25 +212,26 @@ def info_ID(type):						#type=PACS/Sparse/Map
 		return objet,obs_id,B,R
 
 
-def SPARSE_spectrum(image):					#Cette fonction récupère le spectre du détecteur central, fait une moyenne de tous les autres en tant que "Background" puis calcule un spectre final 
-	hdulist=read_data(image)
-	SLW_central_flux,SLW_central_wave=hdulist[11].data['flux'],hdulist[11].data['wave']		#11: Correspondant au détecteur SLWC3
-	SSW_central_flux,SSW_central_wave=hdulist[39].data['flux'],hdulist[39].data['wave']		#39: Correspondant au détecteur SSWD4
+def SPARSE_spectrum(source_name):					#Cette fonction récupère le spectre du détecteur central, fait une moyenne de tous les autres en tant que "Background" puis calcule un spectre final 
+	hdulist_SSW=open_source(source_name,'Sparse','SSW')
+	hdulist_SLW=open_source(source_name,'Sparse','SLW')
+	SLW_central_flux,SLW_central_wave=hdulist_SLW['SLWC3'].data['flux'],hdulist_SLW['SLWC3'].data['wave']		#11: Correspondant au détecteur SLWC3
+	SSW_central_flux,SSW_central_wave=hdulist_SSW['SSWD4'].data['flux'],hdulist_SSW['SSWD4'].data['wave']		#39: Correspondant au détecteur SSWD4
 	Bkg_SLW_flux=[]
 	Bkg_SSW_flux=[]
 	for slw in range (2,21):
 		if slw==11:												#On exclut le détecteur central dans le calcul du Background
 			continue 
-		Bkg_SLW_flux.append(hdulist[slw].data['flux'])
+		Bkg_SLW_flux.append(hdulist_SLW[slw].data['flux'])
 	for ssw in range (21,56):
 		if slw==39:
 			continue 
-		Bkg_SSW_flux.append(hdulist[ssw].data['flux'])
+		Bkg_SSW_flux.append(hdulist_SSW[ssw].data['flux'])
 
 	Bkg_SLW_flux=np.mean(np.array(Bkg_SLW_flux),axis=0)			#Calcul du Background en faisant la moyenne de tous les autres détecteurs
 	Bkg_SSW_flux=np.mean(np.array(Bkg_SSW_flux),axis=0)
 
-	SLW_spectrum=SLW_central_flux-Bkg_SLW_flux					#Spectre final
+	SLW_spectrum=SLW_central_flux-Bkg_SLW_flux					#Spectre final sans le background
 	SSW_spectrum=SSW_central_flux-Bkg_SSW_flux
 
 	return SLW_central_flux, SLW_spectrum, Bkg_SLW_flux, SLW_central_wave, SSW_central_flux, SSW_spectrum, Bkg_SSW_flux, SSW_central_wave
@@ -296,7 +297,7 @@ def plot_SPIRE_SPARSE(source_name,resol,WVL,type='spectre'):
 			Detector=hdulist[i].header['CHNLNAME']
 			plt.subplot(5,4,i-1)
 			plt.plot(Wave,Flux)
-			plt.ylim(np.min(hdulist[11].data['flux'])-1E-18,np.max(hdulist[11].data['flux'])+1E-18)   #On met tous les graphes à la même échelle de flux en prenant pour base le détecteur central
+			#plt.ylim(np.min(hdulist[11].data['flux'])-1E-18,np.max(hdulist[11].data['flux'])+1E-18)   #On met tous les graphes à la même échelle de flux en prenant pour base le détecteur central
 			plt.title(str(Detector))
 		plt.suptitle('Spectres correspondant aux 19 détecteurs SLW de la source '+str(source_name))
 		plt.tight_layout(pad=0.95, w_pad=0.02, h_pad=0.02)
@@ -309,7 +310,7 @@ def plot_SPIRE_SPARSE(source_name,resol,WVL,type='spectre'):
 			Detector=hdulist[i].header['CHNLNAME']
 			plt.subplot(5,4,i-29)
 			plt.plot(Wave,Flux)
-			plt.ylim(np.min(hdulist[39].data['flux'])-0.5E-17,np.max(hdulist[39].data['flux'])+0.5E-17)  #On met tous les graphes à la même échelle de flux en prenant pour base le détecteur central
+			#plt.ylim(np.min(hdulist[39].data['flux'])-0.5E-17,np.max(hdulist[39].data['flux'])+0.5E-17)  #On met tous les graphes à la même échelle de flux en prenant pour base le détecteur central
 			plt.title(str(Detector))
 		plt.suptitle('Spectres correspondant aux 20 détecteurs (parmi les 37) SSW de la source '+str(source_name))
 		plt.tight_layout(pad=0.95, w_pad=0.02, h_pad=0.02)
@@ -425,7 +426,7 @@ def plot_final_SPIRE_SPARSE(source_name):     #On trace le spectre des détecteu
 		long_number_final=long_number[1]
 		a=2'''
 	file='hspirespectrometer'+str(obs_id[index_obj])+'_a106000'+str(a)+'_spg_HR_20sds_'+str(long_number_final[index_obj])+'.fits'
-	SLW_central_flux, SLW_spectrum, Bkg_SLW_flux, SLW_central_wave, SSW_central_flux, SSW_spectrum, Bkg_SSW_flux, SSW_central_wave=SPARSE_spectrum(path+file)
+	SLW_central_flux, SLW_spectrum, Bkg_SLW_flux, SLW_central_wave, SSW_central_flux, SSW_spectrum, Bkg_SSW_flux, SSW_central_wave=SPARSE_spectrum(source_name)
 	
 	#SLW_central_wave=3E8/(SLW_central_wave*1E3)
 	#SSW_central_wave=3E8/(SSW_central_wave*1E3)

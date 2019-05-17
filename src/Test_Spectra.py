@@ -24,7 +24,7 @@ direc='/Users/bordieremma/Documents/Magistere_3/STAGE_CFHT/'
 direc1='/Users/bordieremma/Documents/Magistere_3/STAGE_CFHT/Data/'
 
 
-def open_source(source_name,instru, colour_pacs=None,colour_spire=None):			#instru= PACS/Map/SPIRE_SPARSE
+def open_source(source_name,instru, colour_pacs=None,colour_spire=None):			#instru= PACS/Map/Sparse
 	index_obj=info_ID(instru)[0].index(source_name)
 	obs_id=info_ID(instru)[1][index_obj]
 	#name=glob.glob(path+str(obs_id))
@@ -34,6 +34,10 @@ def open_source(source_name,instru, colour_pacs=None,colour_spire=None):			#inst
 
 	if instru=='Map':
 		path=direc1+'SPIRE_MAPPING/HR_'+str(colour_spire)+'/'
+		a=glob.glob(path+'hspirespectrometer'+str(obs_id)+'*.fits', recursive=True)
+
+	if instru=='Sparse':
+		path=direc1+'SPIRE_SPARSE/HR_spectrum_ext/'
 		a=glob.glob(path+'hspirespectrometer'+str(obs_id)+'*.fits', recursive=True)
 
 	hdulist=fits.open(a[0])

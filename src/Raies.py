@@ -346,7 +346,7 @@ def fit_lines_sinc(Wave,Flux,Flux_range,emission):		#Colour=R,B/ Flux_range dél
 
 	return y_line, g_init, fit_line
 
-def fit_function_spire_map(source_name,colour, Wave, Flux):			#Calculate the fit function according to the lines for a given source  / colour=SSW/SLW
+def fit_function_spire(source_name,colour, Wave, Flux):			#Calculate the fit function according to the lines for a given source  / colour=SSW/SLW
 
 	my_dict=csv_to_dict('Bulles.csv')
 
@@ -375,7 +375,7 @@ def fit_function_spire_map(source_name,colour, Wave, Flux):			#Calculate the fit
 			fitted_lines.append('OH_1033')
 
 		if int(my_dict[source_name]['CO_98'])==1:
-			CO_98=Flux[np.where((Wave>1033) & (Wave<1037))]
+			CO_98=Flux[np.where((Wave>1035) & (Wave<1037))]
 			g_line+=fit_lines_sinc(Wave,Flux,CO_98,'Em')[1]
 			fitted_lines.append('CO_98')
 
@@ -499,7 +499,7 @@ def fit_one_spectrum_spire_map(source_name,colour,mode,row=None,column=None):
 			title_spec='pixel:('+str(row)+','+str(column)+')'
 
 		#if np.shape(cond)[1]!=0:
-		g_line, label, fitted_lines =fit_function_spire_map(source_name,'SSW', Wave, Flux)
+		g_line, label, fitted_lines =fit_function_spire(source_name,'SSW', Wave, Flux)
 		fit_g = fitting.LevMarLSQFitter()
 		fit_line=fit_g(g_line,Wave,Flux)
 		y_line= fit_line(Wave)
@@ -541,7 +541,7 @@ def fit_one_spectrum_spire_map(source_name,colour,mode,row=None,column=None):
 			title_spec='pixel:('+str(row)+','+str(column)+')'
 
 		#if np.shape(cond)[1]!=0:
-		g_line, label, fitted_lines =fit_function_spire_map(source_name,'SLW', Wave, Flux)
+		g_line, label, fitted_lines =fit_function_spire(source_name,'SLW', Wave, Flux)
 		fit_g = fitting.LevMarLSQFitter()
 		fit_line=fit_g(g_line,Wave,Flux)
 		y_line= fit_line(Wave)
@@ -561,6 +561,215 @@ def fit_one_spectrum_spire_map(source_name,colour,mode,row=None,column=None):
 def plot_fit_one_spectrum_spire_map(source_name,mode,row=None,column=None):
 	Flux_SSW ,Wave_SSW , wcs_SSW, fit_line_SSW, Residual_SSW, label_SSW, title, title_spec_SSW, fitted_lines =fit_one_spectrum_spire_map(source_name,'SSW',mode,row,column)
 	Flux_SLW ,Wave_SLW , wcs_SLW, fit_line_SLW, Residual_SLW, label_SLW, title, title_spec_SLW, fitted_lines =fit_one_spectrum_spire_map(source_name,'SLW',mode,row,column)
+	y_line_SSW,y_line_SLW= fit_line_SSW(Wave_SSW),fit_line_SLW(Wave_SLW)
+
+	#Plots
+	plt.figure()
+	plt.subplot(1,2,1)
+	plt.plot(Wave_SSW, Flux_SSW, '-b')
+	plt.plot(Wave_SLW, Flux_SLW, '-b', label='data')
+	plt.plot(Wave_SSW,y_line_SSW,'-',color='orangered',label=str(title_spec_SSW)+' '+ str(label_SSW[:]))
+	plt.plot(Wave_SLW,y_line_SLW,'-',color='hotpink',label=str(title_spec_SLW)+' '+ str(label_SLW[:]))
+	plt.legend()
+	plt.title(r'Fit des lines SPIRE_MAP '+str(title))
+	plt.xlabel(r'Frequency (GHz)')
+	plt.ylabel(r'Flux ($W.m^{-2}.sr^{-1}.Hz^{-1}$)')
+	
+	# Residual flux plot 
+	plt.subplot(1,2,2)
+	plt.plot(Wave_SSW,Residual_SSW,'-c', label='Gauss')
+	plt.plot(Wave_SLW, Residual_SLW, '-c')
+	plt.xlabel(r'Frequency (GHz)')
+	plt.ylabel(r'Flux ($W.m^{-2}.sr^{-1}.Hz^{-1}$)')
+	plt.legend()
+	plt.title(r'Residu: Données-Fit des lines'+str(title))
+
+	plt.suptitle(r'Fit des lines SPIRE pour '+str(source_name)+r' avec un model Sinc $+$ Polynome deg 6 (continuum)')
+	plt.show()
+
+	return 
+
+
+############################################################  SPIRE-SPARSE MAPS  ########################################################
+#################################################################################################################################################
+
+from matplotlib.patches import Circle
+from astropy.visualization.wcsaxes import SphericalCircle
+from astropy import units as u
+from astropy.coordinates import Angle
+
+detector_SLW=['SLWA1','SLWA2','SLWA3','SLWB1','SLWB2','SLWB3','SLWB4','SLWC1','SLWC2','SLWC3','SLWC4','SLWC5','SLWD1','SLWD2','SLWD3','SLWD4','SLWE1','SLWE2','SLWE3']
+detector_SSW=['SSWA1','SSWA2','SSWA3','SSWA4','SSWB1','SSWB2','SSWB3','SSWB4','SSWB5','SSWC1','SSWC2','SSWC3','SSWC4','SSWC5','SSWC6','SSWD1','SSWD2','SSWD3','SSWD4','SSWD6','SSWD7','SSWE1','SSWE2','SSWE3','SSWE4','SSWE5','SSWE6','SSWF1','SSWF2','SSWF3','SSWF5','SSWG1','SSWG2','SSWG3','SSWG4']
+central_detector_SLW='SLWC3'
+central_detector_SSW='SSWD4'
+
+def dict_detector():				#Creates a dictionnary with 
+	
+	SPARSE={}
+	my_dict=csv_to_dict('Bulles.csv')
+	sources=my_dict.keys()
+	for source in sources:
+		if int(my_dict[str(source)]['SPIRE_SPARSE'])==1:
+			hdulist=open_source(source,'Sparse')
+			SPARSE[str(source)]={}
+			for detector in detector_SLW:
+				coord=[]
+				coord.append(hdulist[str(detector)].header['RA'])
+				coord.append(hdulist[str(detector)].header['DEC'])
+				SPARSE[str(source)][str(detector)]=coord
+			for detector in detector_SSW:
+				coord=[]
+				coord.append(hdulist[str(detector)].header['RA'])
+				coord.append(hdulist[str(detector)].header['DEC'])
+				SPARSE[str(source)][str(detector)]=coord
+
+
+	write_dict(SPARSE,'SPARSE_detectors.npy')
+
+	return SPARSE
+
+def info_detectors(source_name):
+	Detectors=np.load(direc1+'SPARSE_detectors.npy',allow_pickle=True).item()
+	detector_SLW=list(Detectors[source_name].keys())[:19]
+	detector_SSW=list(Detectors[source_name].keys())[19:]
+	Beam_SSW=Angle('8"',unit=u.deg).degree					#Beam=16 but we want the radius so 8
+	Beam_SLW=Angle('17"',unit=u.deg).degree
+	FOV=Angle('1.3m',unit=u.deg).degree
+
+	return Beam_SLW, Beam_SSW, detector_SLW, detector_SSW
+
+
+def footprint(source_name):
+
+	Detectors=np.load(direc1+'SPARSE_detectors.npy',allow_pickle=True).item()
+	Beam_SLW, Beam_SSW, detector_SLW, detector_SSW=info_detectors(source_name)
+
+	num_name=source_name[4:8]
+	hdu_MIPS24=fits.open(direc+'Bulles_Nicolas/MB'+str(num_name)+'/MIPS24_MB'+str(num_name)+'.fits')
+
+	Flux_range_Mips=np.nanmax(hdu_MIPS24[0].data[100:150,100:150])-np.nanmin(hdu_MIPS24[0].data[100:150,100:150])
+	Levels=list(np.arange(np.nanmin(hdu_MIPS24[0].data[100:150,100:150]),np.nanmax(hdu_MIPS24[0].data[100:150,100:150]),Flux_range_Mips/10.))
+
+	plt.figure()
+	ax=plt.subplot(1,1,1,projection=WCS(hdu_MIPS24[0].header))
+	plt.imshow(hdu_MIPS24[0].data, vmin=np.nanmin(hdu_MIPS24[0].data[100:150,100:150]) , vmax=np.nanmax(hdu_MIPS24[0].data[100:150,100:150]))#[100:150,100:150])
+	#plt.colorbar(label="Flux (MJy/sr)")
+	#ax.contour(hdu_MIPS24[0].data, levels=Levels, colors='white',linewidths=0.5)#, transform=ax.get_transform(WCS(hdu_MIPS24[0].header)),levels=[50,60,70,80,100], colors='white',linewidths=0.5)
+	#plt.colorbar()
+	plt.xlabel('RA (J2000)')
+	plt.ylabel('DEC (J2000)')
+	plt.title('Source '+str(source_name)+r' observed with Spitzer MIPS 24 $\mu$m', fontstyle='italic',fontsize=11)
+	#plt.grid()
+
+	r = SphericalCircle((Detectors[source_name][central_detector_SLW][0]* u.deg, Detectors[source_name][central_detector_SLW][1] * u.deg), Beam_SLW * u.degree, edgecolor='yellow',label='SLW',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+	ax.add_patch(r)
+
+	r = SphericalCircle((Detectors[source_name][central_detector_SSW][0]* u.deg, Detectors[source_name][central_detector_SSW][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',label='SSW',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+	ax.add_patch(r)
+
+	for detector in detector_SLW:
+		if detector=='central_detector_SLW':
+			continue
+		r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SLW * u.degree, edgecolor='orange',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+		ax.add_patch(r)
+		#plt.text(Detectors[source_name][detector][0]+0.001, Detectors[source_name][detector][1]-0.001, str(detector[3:]), color='yellow',transform=ax.get_transform('fk5'))
+		plt.text(Detectors[source_name][detector][0], Detectors[source_name][detector][1], str(detector[3:]), color='orange',horizontalalignment='center',verticalalignment='center',alpha=0.8,transform=ax.get_transform('fk5'))
+	#plt.legend('SLW')
+
+	for detector in detector_SSW:
+		if detector=='central_detector_SLW':
+			continue
+		r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+		ax.add_patch(r)
+		plt.text(Detectors[source_name][detector][0], Detectors[source_name][detector][1], str(detector[3:]), color='red',horizontalalignment='center',verticalalignment='center',alpha=0.8,transform=ax.get_transform('fk5'))
+	
+	#plt.legend('SSW')
+	r = SphericalCircle((Detectors[source_name][central_detector_SLW][0]* u.deg, Detectors[source_name][central_detector_SLW][1] * u.deg), FOV * u.degree, label='FOV',edgecolor='green',linewidth=2,facecolor='none',transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+	ax.add_patch(r)
+	plt.legend()
+	plt.suptitle('Footprint of the SPIRE Sparse FTS bolometers for source '+ str(source_name))
+
+	plt.show()
+
+	return
+
+
+def fit_one_spectrum_spire_sparse(source_name,color,Detector_SSW=None,Detector_SLW=None):
+
+	#SLW_central_flux, SLW_spectrum, Bkg_SLW_flux, SLW_central_wave, SSW_central_flux, SSW_spectrum, Bkg_SSW_flux, SSW_central_wave=SPARSE_spectrum(source_name)
+
+	if color=='SSW':
+		hdulist_SSW= open_source(source_name,'Sparse','SSW')
+		if Detector_SSW==None:						#On prend le détecteur central
+			#hdulist_SSW= open_source(source_name,'Sparse','SSW')
+			Wave_SSW,Flux_SSW= hdulist_SSW['SSWD4'].data['wave'], hdulist_SSW['SSWD4'].data['flux']
+			cond=np.where(np.isnan(Flux_SSW))
+			
+			if np.shape(cond)[1]!=0:
+				Flux_SSW[cond]=0
+			
+			Wave, Flux=Wave_SSW, Flux_SSW
+			title=': one spectrum' 
+			title_spec='detector = '+str(central_detector_SSW)
+
+		else:
+			Wave_SSW,Flux_SSW= hdulist_SSW[str(Detector_SSW)].data['wave'], hdulist_SSW[str(Detector_SSW)].data['flux']
+			cond=np.where(np.isnan(Flux_SSW))
+
+			if np.shape(cond)[1]!=0:
+				Flux_SSW[cond]=0
+			
+			Wave, Flux=Wave_SSW, Flux_SSW
+			title=': one spectrum' 
+			title_spec='detector = '+str(detector_SLW)
+
+		g_line, label, fitted_lines =fit_function_spire(source_name,'SSW', Wave, Flux)
+		fit_g = fitting.LevMarLSQFitter()
+		fit_line=fit_g(g_line,Wave,Flux)
+		y_line= fit_line(Wave)
+
+		Residual=Flux-y_line
+
+	if color=='SLW':
+		hdulist_SLW= open_source(source_name,'Sparse','SLW')
+		if Detector_SLW==None:						#On prend le détecteur central
+			#hdulist_SSW= open_source(source_name,'Sparse','SSW')
+			Wave_SLW,Flux_SLW= hdulist_SLW['SLWC3'].data['wave'], hdulist_SLW['SLWC3'].data['flux']
+			cond=np.where(np.isnan(Flux_SLW))
+			
+			if np.shape(cond)[1]!=0:
+				Flux_SLW[cond]=0
+			
+			Wave, Flux=Wave_SLW, Flux_SLW
+			title=': one spectrum' 
+			title_spec='detector = '+str(central_detector_SLW)
+
+		else:
+			Wave_SLW,Flux_SLW= hdulist_SLW[str(Detector_SLW)].data['wave'], hdulist_SLW[str(Detector_SLW)].data['flux']
+			cond=np.where(np.isnan(Flux_SLW))
+
+			if np.shape(cond)[1]!=0:
+				Flux_SLW[cond]=0
+			
+			Wave, Flux=Wave_SLW, Flux_SLW
+			title=': one spectrum' 
+			title_spec='detector = '+str(detector_SLW)
+
+		g_line, label, fitted_lines =fit_function_spire(source_name,'SLW', Wave, Flux)
+		fit_g = fitting.LevMarLSQFitter()
+		fit_line=fit_g(g_line,Wave,Flux)
+		y_line= fit_line(Wave)
+
+		Residual=Flux-y_line
+
+	return Flux,Wave, fit_line, Residual, label, title, title_spec, fitted_lines
+
+
+def plot_fit_one_spectrum_spire_sparse(source_name,Detector_SSW=None, Detector_SLW=None):
+	#print(detector)
+	Flux_SSW ,Wave_SSW ,fit_line_SSW, Residual_SSW, label_SSW, title, title_spec_SSW, fitted_lines =fit_one_spectrum_spire_sparse(source_name,'SSW', Detector_SSW,Detector_SLW)
+	Flux_SLW ,Wave_SLW , fit_line_SLW, Residual_SLW, label_SLW, title, title_spec_SLW, fitted_lines =fit_one_spectrum_spire_sparse(source_name,'SLW',Detector_SSW, Detector_SLW)
+	
 	y_line_SSW,y_line_SLW= fit_line_SSW(Wave_SSW),fit_line_SLW(Wave_SLW)
 
 	#Plots
@@ -779,6 +988,108 @@ def fit_map_spectrum(source_name,instru): #instru=PACS, SPIRE_MAP
 
 		return fit_line_SSW,fit_line_SLW, Source_SSW, Source_SLW
 
+	if instru=='SPIRE_SPARSE':
+		init_fit_SSW, Res_SSW=fit_one_spectrum_spire_sparse(source_name,'SSW')[2],fit_one_spectrum_spire_sparse(source_name,'SSW')[3]
+		init_fit_SLW, Res_SLW=fit_one_spectrum_spire_sparse(source_name,'SLW')[2],fit_one_spectrum_spire_sparse(source_name,'SLW')[3]
+
+		fit_line_SSW=np.zeros((len(detector_SSW),len(init_fit_SSW.parameters)))
+		fit_line_SLW=np.zeros((len(detector_SLW),len(init_fit_SLW.parameters)))
+		Residual_SSW=np.zeros((len(detector_SSW),len(Res_SSW)))
+		Residual_SLW=np.zeros((len(detector_SLW),len(Res_SLW)))
+		
+		Source_SSW={}
+		Source_SSW['Object']=str(source_name)
+	
+		
+		for detector in detector_SSW:
+			i=detector_SSW.index(detector)
+			print (i)
+			#Wave_SSW,Flux_SSW= hdulist_SSW['SSWD4'].data['wave'], hdulist_SSW['SSWD4'].data['flux']
+			Flux,Wave_SSW, fit_line, Residual, label, title, title_spec, fitted_lines=fit_one_spectrum_spire_sparse(source_name,'SSW',Detector_SSW=detector,Detector_SLW=None)
+			param_names=fit_line.param_names
+			#Residual_SSW.append(Residual)
+			fitted_lines_SSW=fitted_lines
+			if fit_line!=0:
+				Residual_SSW[i,:]=Residual
+				#param_names=fit_line.param_names
+				fit_line_SSW[i,:]=fit_line.parameters
+				#fitted_lines_SSW=fitted_lines
+			else:
+				fit_line_SSW[i,:]=np.nan
+		
+
+		Source_SSW['Wave']=Wave_SSW
+		Source_SSW['Param_names']=param_names
+		Source_SSW['Detectors']=detector_SSW
+		Source_SSW['Residual']=detector_SSW,Residual_SSW
+
+		a=0
+		for line in fitted_lines_SSW:
+			#print(line)
+			a=fitted_lines_SSW.index(line)
+			#print(a)
+			Line_flux_SSW=[]
+			#param_names=fit_line_SSW.param_names
+			for i in range(len(fit_line_SSW[:,0])):
+					if np.isnan(fit_line_SSW[i,0]):
+						Line_flux_SSW.append(0)
+					else:
+						amplitude, mean, std=(fit_line_SSW[i,:][3*a+8]),(fit_line_SSW[i,:][3*a+9]),abs(fit_line_SSW[i,:][3*a+10])		#Poly degre 7 #On retrouve les paramètres A et sigma pour le calcul du flux des lines
+						Line_flux_SSW.append(amplitude*std*np.pi)
+				
+			
+			Source_SSW[str(line)]=fit_line_SSW, Line_flux_SSW
+		
+		Source_SLW={}
+		Source_SLW['Object']=str(source_name)
+	
+		
+		for detector in detector_SLW:
+			i=detector_SLW.index(detector)
+			print (i)
+			#Wave_SSW,Flux_SSW= hdulist_SSW['SSWD4'].data['wave'], hdulist_SSW['SSWD4'].data['flux']
+			Flux,Wave_SLW, fit_line, Residual, label, title, title_spec, fitted_lines=fit_one_spectrum_spire_sparse(source_name,'SLW',Detector_SSW=None, Detector_SLW=detector)
+			param_names=fit_line.param_names
+			#Residual_SSW.append(Residual)
+			fitted_lines_SLW=fitted_lines
+			if fit_line!=0:
+				Residual_SLW[i,:]=Residual
+				#param_names=fit_line.param_names
+				fit_line_SLW[i,:]=fit_line.parameters
+				#fitted_lines_SSW=fitted_lines
+			else:
+				fit_line_SLW[i,:]=np.nan
+		
+
+		Source_SLW['Wave']=Wave_SLW
+		Source_SLW['Param_names']=param_names
+		Source_SLW['Detectors']=detector_SLW
+		Source_SLW['Residual']=detector_SLW,Residual_SLW
+
+		a=0
+		for line in fitted_lines_SLW:
+			#print(line)
+			a=fitted_lines_SLW.index(line)
+			#print(a)
+			Line_flux_SLW=[]
+			#param_names=fit_line_SSW.param_names
+			for i in range(len(fit_line_SLW[:,0])):
+					if np.isnan(fit_line_SLW[i,0]):
+						Line_flux_SLW.append(0)
+					else:
+						amplitude, mean, std=(fit_line_SLW[i,:][3*a+8]),(fit_line_SLW[i,:][3*a+9]),abs(fit_line_SLW[i,:][3*a+10])		#Poly degre 7 #On retrouve les paramètres A et sigma pour le calcul du flux des lines
+						Line_flux_SLW.append(amplitude*std*np.pi)
+				
+			
+			Source_SLW[str(line)]=fit_line_SLW, Line_flux_SLW
+
+	
+		write_dict(Source_SSW,str(source_name)+'_SSW.npy')
+		write_dict(Source_SLW,str(source_name)+'_SLW.npy')
+
+		return fit_line_SSW,fit_line_SLW, Source_SSW, Source_SLW 
+
+
 
 ############################################################  MAPS-PACS/SPIRE - BUBBLES   ########################################################
 #################################################################################################################################################
@@ -788,9 +1099,9 @@ def fit_Bubbles():
 	sources=my_dict.keys()
 
 	for source in sources:
-		if int(my_dict[str(source)]['SPIRE_MAP'])==0 and int(my_dict[str(source)]['SPIRE_SPARSE'])==0 :
+		if int(my_dict[str(source)]['SPIRE_SPARSE'])==1 :
 			fit_map_spectrum(source,'PACS')
-			#fit_map_spectrum(source,'SPIRE_MAP')
+			fit_map_spectrum(source,'SPIRE_SPARSE')
 	#if int(my_dict[str(source_name)]['SPIRE_MAP'])==1:
 	#	fit_map_spectrum(source_name,'SPIRE_MAP')
 
@@ -862,8 +1173,8 @@ def plot_map(source_name):
 		plt.colorbar(im, ax=ax , label="Flux (MJy/sr)",aspect=20)
 		a+=1
 		#plt.tight_layout()
-		plt.suptitle('Line Flux maps for '+str(source_name)+' in PACS R-Band  Image size: '+str(size), fontsize=11,fontstyle='italic')
-	
+	plt.suptitle('Line Flux maps for '+str(source_name)+' in PACS R-Band  Image size: '+str(size), fontsize=11,fontstyle='italic')
+	plt.tight_layout(pad=3.0, w_pad=0.5, h_pad=1.5)
 	plt.show()
 
 	a=1
@@ -887,11 +1198,12 @@ def plot_map(source_name):
 		#plt.colorbar()
 		a+=1
 		#plt.tight_layout()
-		plt.suptitle('Line Flux maps for '+str(source_name)+' in PACS B-Band Image size: '+str(size),fontsize=11,fontstyle='italic')
+	plt.suptitle('Line Flux maps for '+str(source_name)+' in PACS B-Band Image size: '+str(size),fontsize=11,fontstyle='italic')
+	plt.tight_layout(pad=3.0, w_pad=0.5, h_pad=1.5)
 	plt.show()
 
 	
-	if int(my_dict[str(source_name)]['SPIRE_MAP'])==1 and int(my_dict[str(source_name)]['PACS'])==1:
+	if int(my_dict[str(source_name)]['SPIRE_MAP'])==1:
 
 		Source_SSW=np.load(direc1+'MAPS/'+str(source_name)+'_SSW.npy',allow_pickle=True).item()
 		Source_SLW=np.load(direc1+'MAPS/'+str(source_name)+'_SLW.npy',allow_pickle=True).item()			#
@@ -995,102 +1307,76 @@ def plot_map(source_name):
 		#norm = colors.BoundaryNorm(boundaries=bounds, ncolors=256)
 		#pcm = ax.pcolormesh(Source_R[line], norm=norm)#, cmap='RdBu_r')
 
+	if int(my_dict[str(source_name)]['SPIRE_SPARSE'])==1:
+		Detectors=np.load(direc1+'SPARSE_detectors.npy',allow_pickle=True).item()
+		Beam_SLW, Beam_SSW, detector_SLW, detector_SSW = info_detectors(source_name)
+		
+		Source_SSW=np.load(direc1+'MAPS/'+str(source_name)+'_SSW.npy',allow_pickle=True).item()
+		Source_SLW=np.load(direc1+'MAPS/'+str(source_name)+'_SLW.npy',allow_pickle=True).item()			#
+		lines_SSW=list(Source_SSW.keys())[5:]
+		lines_SLW=list(Source_SLW.keys())[5:]
+
+
+		plt.figure()
+		ax=plt.subplot(1,1,1,projection=WCS(hdu_MIPS24[0].header))
+		plt.imshow(hdu_MIPS24[0].data, vmin=np.nanmin(hdu_MIPS24[0].data[100:150,100:150]) , vmax=np.nanmax(hdu_MIPS24[0].data[100:150,100:150]))#[100:150,100:150])
+		plt.xlabel('RA (J2000)')
+		plt.ylabel('DEC (J2000)')
+		plt.title('Source '+str(source_name)+r' observed with Spitzer MIPS 24 $\mu$m', fontstyle='italic',fontsize=11)
+
+		r = SphericalCircle((Detectors[source_name][central_detector_SLW][0]* u.deg, Detectors[source_name][central_detector_SLW][1] * u.deg), Beam_SLW * u.degree, edgecolor='yellow',label='SLW',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+		ax.add_patch(r)
+
+		r = SphericalCircle((Detectors[source_name][central_detector_SSW][0]* u.deg, Detectors[source_name][central_detector_SSW][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',label='SSW',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+		ax.add_patch(r)
+
+		for detector in detector_SLW:
+			if detector=='central_detector_SLW':
+				pass
+			r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SLW * u.degree, edgecolor='orange',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+			ax.add_patch(r)
+			#plt.text(Detectors[source_name][detector][0]+0.001, Detectors[source_name][detector][1]-0.001, str(detector[3:]), color='yellow',transform=ax.get_transform('fk5'))
+			plt.text(Detectors[source_name][detector][0], Detectors[source_name][detector][1], str(detector[3:]), color='orange',horizontalalignment='center',verticalalignment='center',alpha=0.8,transform=ax.get_transform('fk5'))
+		#plt.legend('SLW')
+
+		for detector in detector_SSW:
+			if detector=='central_detector_SLW':
+				pass
+			r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
+			ax.add_patch(r)
+			plt.text(Detectors[source_name][detector][0], Detectors[source_name][detector][1], str(detector[3:]), color='red',horizontalalignment='center',verticalalignment='center',alpha=0.8,transform=ax.get_transform('fk5'))
+		plt.colorbar()
+		plt.show()
+
+		'''
+		for line in lines_SSW:
+			y_line_SSW= fit_line_SSW(Wave_SSW),fit_line_SLW(Wave_SLW)
+
+		#Plots
+		plt.figure()
+		plt.subplot(1,2,1)
+		plt.plot(Wave_SSW, Flux_SSW, '-b')
+		plt.plot(Wave_SLW, Flux_SLW, '-b', label='data')
+		plt.plot(Wave_SSW,y_line_SSW,'-',color='orangered',label=str(title_spec_SSW)+' '+ str(label_SSW[:]))
+		plt.plot(Wave_SLW,y_line_SLW,'-',color='hotpink',label=str(title_spec_SLW)+' '+ str(label_SLW[:]))
+		plt.legend()
+		plt.title(r'Fit des lines SPIRE_MAP '+str(title))
+		plt.xlabel(r'Frequency (GHz)')
+		plt.ylabel(r'Flux ($W.m^{-2}.sr^{-1}.Hz^{-1}$)')
+		
+		# Residual flux plot 
+		plt.subplot(1,2,2)
+		plt.plot(Wave_SSW,Residual_SSW,'-c', label='Gauss')
+		plt.plot(Wave_SLW, Residual_SLW, '-c')
+		plt.xlabel(r'Frequency (GHz)')
+		plt.ylabel(r'Flux ($W.m^{-2}.sr^{-1}.Hz^{-1}$)')
+		plt.legend()
+		plt.title(r'Residu: Données-Fit des lines'+str(title))
+
+		plt.suptitle(r'Fit des lines SPIRE pour '+str(source_name)+r' avec un model Sinc $+$ Polynome deg 6 (continuum)')
+		plt.show()'''
 
 	return #Source_R, Source_B
-
-############################################################  SPIRE-SPARSE MAPS  ########################################################
-#################################################################################################################################################
-
-from matplotlib.patches import Circle
-from astropy.visualization.wcsaxes import SphericalCircle
-from astropy import units as u
-from astropy.coordinates import Angle
-
-detector_SLW=['SLWA1','SLWA2','SLWA3','SLWB1','SLWB2','SLWB3','SLWB4','SLWC1','SLWC2','SLWC3','SLWC4','SLWC5','SLWD1','SLWD2','SLWD3','SLWD4','SLWE1','SLWE2','SLWE3']
-detector_SSW=['SSWA1','SSWA2','SSWA3','SSWA4','SSWB1','SSWB2','SSWB3','SSWB4','SSWB5','SSWC1','SSWC2','SSWC3','SSWC4','SSWC5','SSWC6','SSWD1','SSWD2','SSWD3','SSWD4','SSWD6','SSWD7','SSWE1','SSWE2','SSWE3','SSWE4','SSWE5','SSWE6','SSWF1','SSWF2','SSWF3','SSWF5','SSWG1','SSWG2','SSWG3','SSWG4']
-central_detector_SLW='SLWC3'
-central_detector_SSW='SSWD4'
-
-def dict_detector():				#Creates a dictionnary with 
-	
-	SPARSE={}
-	my_dict=csv_to_dict('Bulles.csv')
-	sources=my_dict.keys()
-	for source in sources:
-		if int(my_dict[str(source)]['SPIRE_SPARSE'])==1:
-			hdulist=open_source(source,'Sparse')
-			SPARSE[str(source)]={}
-			for detector in detector_SLW:
-				coord=[]
-				coord.append(hdulist[str(detector)].header['RA'])
-				coord.append(hdulist[str(detector)].header['DEC'])
-				SPARSE[str(source)][str(detector)]=coord
-			for detector in detector_SSW:
-				coord=[]
-				coord.append(hdulist[str(detector)].header['RA'])
-				coord.append(hdulist[str(detector)].header['DEC'])
-				SPARSE[str(source)][str(detector)]=coord
-
-
-	write_dict(SPARSE,'SPARSE_detectors.npy')
-
-	return SPARSE
-
-
-def footprint(source_name):
-
-	Detectors=np.load(direc1+'SPARSE_detectors.npy',allow_pickle=True).item()
-	detector_SLW=list(Detectors[source_name].keys())[:19]
-	detector_SSW=list(Detectors[source_name].keys())[19:]
-	Beam_SSW=Angle('8"',unit=u.deg).degree					#Beam=16 but we want the radius so 8
-	Beam_SLW=Angle('17"',unit=u.deg).degree
-	#sep_beam_SSW=Angle('13.5"',unit=u.deg).degree
-	#sep_beam_SLW=Angle('48"',unit=u.deg).degree
-	FOV=Angle('1.3m',unit=u.deg).degree
-
-	num_name=source_name[4:8]
-	hdu_MIPS24=fits.open(direc+'Bulles_Nicolas/MB'+str(num_name)+'/MIPS24_MB'+str(num_name)+'.fits')
-
-	Flux_range_Mips=np.nanmax(hdu_MIPS24[0].data[100:150,100:150])-np.nanmin(hdu_MIPS24[0].data[100:150,100:150])
-	Levels=list(np.arange(np.nanmin(hdu_MIPS24[0].data[100:150,100:150]),np.nanmax(hdu_MIPS24[0].data[100:150,100:150]),Flux_range_Mips/10.))
-
-	plt.figure()
-	ax=plt.subplot(1,1,1,projection=WCS(hdu_MIPS24[0].header))
-	plt.imshow(hdu_MIPS24[0].data, vmin=np.nanmin(hdu_MIPS24[0].data[100:150,100:150]) , vmax=np.nanmax(hdu_MIPS24[0].data[100:150,100:150]))#[100:150,100:150])
-	#plt.colorbar(label="Flux (MJy/sr)")
-	#ax.contour(hdu_MIPS24[0].data, levels=Levels, colors='white',linewidths=0.5)#, transform=ax.get_transform(WCS(hdu_MIPS24[0].header)),levels=[50,60,70,80,100], colors='white',linewidths=0.5)
-	#plt.colorbar()
-	plt.xlabel('RA (J2000)')
-	plt.ylabel('DEC (J2000)')
-	plt.title('Source '+str(source_name)+r' observed with Spitzer MIPS 24 $\mu$m', fontstyle='italic',fontsize=11)
-	#plt.grid()
-
-	r = SphericalCircle((Detectors[source_name][central_detector_SLW][0]* u.deg, Detectors[source_name][central_detector_SLW][1] * u.deg), Beam_SLW * u.degree, edgecolor='yellow',label='SLW',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
-	ax.add_patch(r)
-
-	r = SphericalCircle((Detectors[source_name][central_detector_SSW][0]* u.deg, Detectors[source_name][central_detector_SSW][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',label='SSW',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
-	ax.add_patch(r)
-
-	for detector in detector_SLW:
-		if detector=='central_detector_SLW':
-			continue
-		r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SLW * u.degree, edgecolor='yellow',facecolor='none', linewidth=1.2,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
-		ax.add_patch(r)
-	#plt.legend('SLW')
-
-	for detector in detector_SSW:
-		if detector=='central_detector_SLW':
-			continue
-		r = SphericalCircle((Detectors[source_name][detector][0]* u.deg, Detectors[source_name][detector][1] * u.deg), Beam_SSW * u.degree, edgecolor='red',facecolor='none',linewidth=1.5,transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
-		ax.add_patch(r)
-	
-	#plt.legend('SSW')
-	r = SphericalCircle((Detectors[source_name][central_detector_SLW][0]* u.deg, Detectors[source_name][central_detector_SLW][1] * u.deg), FOV * u.degree, edgecolor='green',linewidth=2,facecolor='none',transform=ax.get_transform('fk5'))#transform=ax.get_transform(WCS(hdu_MIPS24[0].header)))
-	ax.add_patch(r)
-	plt.legend()
-	plt.suptitle('Footprint of the SPIRE Sparse FTS bolometers for source '+ str(source_name))
-
-	plt.show()
 
 ############################################################  CO-LINES Rotation Diagram   ########################################################
 #################################################################################################################################################
