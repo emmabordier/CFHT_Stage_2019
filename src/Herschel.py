@@ -154,11 +154,24 @@ def info_PACS(image):								# Retourne un tableau (voir éléments dans le retu
 	hdulist=read_data(image)
 	Object=hdulist[0].header['OBJECT']						
 	Pixel_size_deg=abs(hdulist[1].header['CDELT1']*hdulist[1].header['CDELT2'])	#en deg^2
-	Pixel_size_sr=Pixel_size_deg*(3600*3600)/(4.25E10)			#1deg^2=3600*3600 arcesec^2 and 1sr=1rad^2=4.25E10 arcsec2
-	Flux=(hdulist[1].data)/Pixel_size_sr						# En Jy/px > Jy/sr
-	Flux=Flux/1E6 												# Jy/sr > MJy/sr	
+	#Pixel_size_sr=Pixel_size_deg*(3600*3600)/(4.25E10)			#1deg^2=3600*3600 arcesec^2 and 1sr=1rad^2=4.25E10 arcsec2
+	#Pixel_size_sr=(Pixel_size_deg*u.deg*u.deg).to(u.sr)			
+	beam=Pixel_size_deg*u.deg*u.deg
+	Flux_Jy=(hdulist[1].data*u.Jy/beam).to(u.Jy/u.sr)				# En Jy/px > Jy/sr= W.m-2.Hz-1.sr-1
+	Flux_Jy=Flux_Jy.value
+	c=3E8*1E6 														#To be in microns.s-1 because wave is in microns
+
+	#Flux=Flux/1E6 												# Jy/sr > MJy/sr	
+	
 	wvl=np.arange((hdulist[1].header['NAXIS3']))	# En microns
 	wave=hdulist[1].header['CRVAL3']+hdulist[1].header['CDELT3']*wvl				
+	
+	# Jy/sr= W.m-2.Hz-1.sr-1 >  W.m-2.um-1.sr-1
+	Flux=np.zeros_like(Flux_Jy)
+	for i in range(np.shape(Flux)[1]):
+		for j in range(np.shape(Flux)[2]):
+			Flux[:,i,j]=Flux_Jy[:,i,j]*1E-26*c/(wave**2)					#I(freq) > I(lambda): W.m-2.sr-1.um-1
+
 	Flux_mean_pixel=np.nanmean(Flux,axis=(0))		#On a une image moyennée sur 5*5 pixels (moyenne des 1900 points dans chaque pixel)
 	Flux_mean_spectrum=np.nanmean(Flux,axis=(1,2))		# On a un spectre moyenné sur 1900 points(moyenne des 25 pixels pour chaque point)
 	wcs=WCS(hdulist[1].header,naxis=2)
@@ -523,17 +536,30 @@ def plot_PACS(source_name):
 	ax2.set_ylabel('Dec (J2000)')
 	ax2.set_title(r'R1 Band image : 102-146 $\mu$m')
 	
-	ax3.plot(Wave_B,Flux_spectrum_B,label='B2A band')
-	ax3.plot(Wave_R,Flux_spectrum_R,label='R1 band')
+	ax3.plot(Wave_B,Flux_spectrum_B,label='B2A band')#, format='%.2e')
+	ax3.plot(Wave_R,Flux_spectrum_R,label='R1 band')#,format='%.2e')
 	#ax3.xaxis.set_ticks(range(5))
-	ax3.set_title(r'Total spectrum B2A $+$ R1 bands')
+	ax3.set_title(r'Mean spectrum B2A $+$ R1 bands')
+	plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 	ax3.set_xlabel(r'Wavelength ($\mu$m)')
-	ax3.set_ylabel(r'Flux ($MJy.sr^{-1}$)')
+	ax3.set_ylabel(r'Flux ($W.m^{-2}.sr^{-1}.$$\mu$$m^{-1}$)')
 	ax3.legend()
 	#ax3.grid()
 
 	#plt.savefig(str(source_name)+'_PACS.pdf',dpi=150)
+	#plt.show()
+
+	plt.figure()
+	plt.plot(Wave_B,Flux_spectrum_B,label='B2A band')#, format='%.2e')
+	plt.plot(Wave_R,Flux_spectrum_R,label='R1 band')
+	plt.title(r'Mean spectrum B2A $+$ R1 bands')
+	plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+	plt.xlabel(r'Wavelength ($\mu$m)')
+	plt.ylabel(r'Flux ($W.m^{-2}.sr^{-1}.$$\mu$$m^{-1}$)')
+	plt.legend()
+
 	plt.show()
+
 	
 	return
 
